@@ -47,6 +47,8 @@ def generate_completion(command, stack):
                 print(f"complete -c sf {condition} -s w -l {option.lstrip('-')} -f -r")
             elif option == '--source-dir':
                 print(f"complete -c sf {condition} -s d -l {option.lstrip('-')} -r")
+            elif option == '--file':
+                print(f"complete -c sf {condition} -s f -l {option.lstrip('-')} -r")
             elif option == '--metadata':
                 print(f"complete -c sf {condition} -s m -l {option.lstrip('-')} -f -r")
             else:
