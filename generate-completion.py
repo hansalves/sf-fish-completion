@@ -3,7 +3,7 @@
 import os
 import sys
 import subprocess
-
+import argparse
 
 class Command:
     def __init__(self, name):
@@ -11,11 +11,13 @@ class Command:
         self.subcommands = {}
         self.options = []
 
-root_commands = Command('sf')
-
 def get_description(cmd):
     full_cmd = cmd + ['--help']
-    return subprocess.check_output(full_cmd, text=True).split('\n')[0]
+    proc = subprocess.run(full_cmd, text=True, stdout=subprocess.PIPE, input="")
+    if proc.returncode != 0:
+        return ''
+    return proc.stdout.split('\n')[0]
+
 
 def add_command(command, command_parts):
     first = command_parts[0]
@@ -26,35 +28,62 @@ def add_command(command, command_parts):
     else:
         return command.subcommands[first]
 
-def generate_completion(command, stack):
+
+def generate_completion(command, stack, add_descriptions=False):
     condition = f'''-n "__sf_is_subcommand {' '.join(stack + [command.name])}"'''
     if len(command.subcommands) > 0:
-        subcommands = ' '.join(command.subcommands.keys())
-        print(f"complete -c sf {condition} -f -a '{subcommands}'")
+        if not add_descriptions:
+            subcommands = ' '.join(command.subcommands.keys())
+            print(f"complete -c sf {condition} -f -a '{subcommands}'")
         for subcommand in command.subcommands.values():
-            generate_completion(subcommand, stack + [command.name])
+            if add_descriptions:
+                description = get_description(stack + [command.name, subcommand.name])
+                if description:
+                    description = description.replace("'", r"\'")
+                    print(f"complete -c sf {condition} -f -a '{subcommand.name}' -d '{description}'")
+                else:
+                    print(f"complete -c sf {condition} -f -a '{subcommand.name}'")
+            generate_completion(subcommand, stack + [command.name], add_descriptions)
     if len(command.options) > 0:
         for option in command.options:
-            if option == '--target-org':
-                print(f"complete -c sf {condition} -s o -l {option.lstrip('-')} -f -ra '(__sf_usernames)'")
-            elif option == '--test-level':
-                print(f"complete -c sf {condition} -s l -l {option.lstrip('-')} -f -ra 'NoTestRun RunSpecifiedTests RunLocalTests RunAllTestsInOrg'")
-            elif option == '--tests':
-                print(f"complete -c sf {condition} -s t -l {option.lstrip('-')} -f -ra '(__sf_testclasses)'")
-            elif option == '--api-version':
-                print(f"complete -c sf {condition} -s a -l {option.lstrip('-')} -f -r")
-            elif option == '--wait':
-                print(f"complete -c sf {condition} -s w -l {option.lstrip('-')} -f -r")
-            elif option == '--source-dir':
-                print(f"complete -c sf {condition} -s d -l {option.lstrip('-')} -r")
+            if option == '--api-version':
+                print(f"complete -c sf {condition} -s a -l api-version -f -r")
             elif option == '--file':
-                print(f"complete -c sf {condition} -s f -l {option.lstrip('-')} -r")
+                print(f"complete -c sf {condition} -s f -l file -r -F")
+            elif option == '--flags-dir':
+                print(f"complete -c sf {condition} -l flags-dir -r -a '(__fish_complete_directories)'")
             elif option == '--metadata':
-                print(f"complete -c sf {condition} -s m -l {option.lstrip('-')} -f -r")
+                print(f"complete -c sf {condition} -s m -l metadata -f -r")
+            elif option == '--source-dir':
+                print(f"complete -c sf {condition} -s d -l source-dir -r -F")
+            elif option == '--target-org':
+                print(f"complete -c sf {condition} -s o -l target-org -f -ra '(__sf_usernames)'")
+            elif option == '--test-level':
+                print(f"complete -c sf {condition} -s l -l test-level -f -ra 'NoTestRun RunSpecifiedTests RunLocalTests RunAllTestsInOrg'")
+            elif option == '--tests':
+                print(f"complete -c sf {condition} -s t -l tests -f -ra '(__sf_testclasses)'")
+            elif option == '--wait':
+                print(f"complete -c sf {condition} -s w -l wait -f -r")
+            elif "file" in option:
+                print(f"complete -c sf {condition} -l {option.lstrip('-')} -r -F")
             else:
                 print(f"complete -c sf {condition} -l {option.lstrip('-')}")
 
-def main(infile):
+def main():
+    parser = argparse.ArgumentParser(
+        prog='generate-completion',
+        description='Generate fish completion for sf')
+    parser.add_argument('-d', '--add-descriptions', action='store_true', help='Add descriptions to the subcommands')
+    parser.add_argument('files', action='store', help='Files to process, defaults to ~/.cache/sf/autocomplete/functions/bash/sf.bash', nargs='*')
+    args = parser.parse_args()
+    if len(args.files) > 1:
+        for arg in args.files:
+            generate_for_file(arg, args.add_descriptions)
+    else:
+        generate_for_file(os.path.expanduser('~/.cache/sf/autocomplete/functions/bash/sf.bash'), args.add_descriptions)
+
+def generate_for_file(infile, add_descriptions):
+    root_commands = Command('sf')
     with open(os.path.join(os.path.dirname(__file__), infile)) as f:
         commands_found = False
         for line in f:
@@ -108,11 +137,7 @@ function __sf_is_subcommand
 	return 0
 end
 ''')
-    generate_completion(root_commands, [])
+    generate_completion(root_commands, [], add_descriptions)
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1:
-        for arg in sys.argv[1:]:
-            main(arg)
-    else:
-        main(os.path.expanduser('~/.cache/sf/autocomplete/functions/bash/sf.bash'))
+    main()
