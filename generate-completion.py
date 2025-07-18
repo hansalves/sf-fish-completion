@@ -114,7 +114,7 @@ end
 
 function __sf_testclasses
 	if command -v fd >/dev/null 2>&1 && command -v rg >/dev/null 2>&1
-		fd -g '*.cls' -0 | xargs -0 rg --ignore-case --multiline --replace '$5' --only-matching --no-line-number --no-filename '@istest\n((global|public|private)\s+)?((with|without)\s+sharing\s+)?class\s+(\w+)'
+		fd -g '*.cls' -0 | xargs -0 rg --ignore-case --multiline --replace '$5' --only-matching --no-line-number --no-filename '@istest\n((global|public|private)\\s+)?((with|without)\s+sharing\s+)?class\\s+(\\w+)'
 	end
 end
 
